@@ -101,10 +101,10 @@ function fromJSON(proto, json) {
  *          builder.element('table').id('data'),
  *          '~',
  *           builder.combine(
- *               builder.element('tr').pseudoClass('nth-of-type(even)'),
+ *               builder.element('tr').pseudoClass('nth-of-type(even)'), *** object
  *               ' ',
- *               builder.element('td').pseudoClass('nth-of-type(even)')
- *           )
+ *               builder.element('td').pseudoClass('nth-of-type(even)')  *** object
+ *           )                                          *** {object ' ' object}.stringify()
  *      )
  *  ).stringify()
  *    => 'div#main.container.draggable + table#data ~ tr:nth-of-type(even)   td:nth-of-type(even)'
@@ -112,36 +112,116 @@ function fromJSON(proto, json) {
  *  For more examples see unit tests.
  */
 
-const cssSelectorBuilder = {
-  element(/* value */) {
-    throw new Error('Not implemented');
-  },
+class CssSelectorBuilder {
+  constructor(selectorStr = '', elements, ids, classes, attrs, pClasses, pElement) {
+    this.selectorStr = selectorStr;
+    this.elements = elements;
+    this.ids = ids;
+    this.classes = classes;
+    this.attrs = attrs;
+    this.pClasses = pClasses;
+    this.pElement = pElement;
+  }
 
-  id(/* value */) {
-    throw new Error('Not implemented');
-  },
+  element(value) {
+    if (this.selectorStr.indexOf('#') !== -1 || this.selectorStr.indexOf('.') !== -1 || this.selectorStr.indexOf('[') !== -1 || this.selectorStr.indexOf(':') !== -1) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (this.elements) throw new Error('Element, id and pseudo-element should not occur more then one time inside the selector');
+    return new CssSelectorBuilder(this.selectorStr + value,
+      value,
+      this.ids,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      this.pElement);
+  }
 
-  class(/* value */) {
-    throw new Error('Not implemented');
-  },
+  id(value) {
+    if (this.selectorStr.indexOf('.') !== -1 || this.selectorStr.indexOf('[') !== -1 || this.selectorStr.indexOf(':') !== -1) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (this.ids) throw new Error('Element, id and pseudo-element should not occur more then one time inside the selector');
+    return new CssSelectorBuilder(`${this.selectorStr}#${value}`,
+      this.elements,
+      value,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      this.pElement);
+  }
 
-  attr(/* value */) {
-    throw new Error('Not implemented');
-  },
+  class(value) {
+    if (this.selectorStr.indexOf('[') !== -1 || this.selectorStr.indexOf(':') !== -1) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (!this.classes) this.classes = [];
+    this.classes.push(value);
+    return new CssSelectorBuilder(`${this.selectorStr}.${value}`,
+      this.elements,
+      this.ids,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      this.pElement);
+  }
 
-  pseudoClass(/* value */) {
-    throw new Error('Not implemented');
-  },
+  attr(value) {
+    if (this.selectorStr.indexOf(':') !== -1) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (!this.attrs) this.attrs = [];
+    this.attrs.push(value);
+    return new CssSelectorBuilder(`${this.selectorStr}[${value}]`,
+      this.elements,
+      this.ids,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      this.pElement);
+  }
 
-  pseudoElement(/* value */) {
-    throw new Error('Not implemented');
-  },
+  pseudoClass(value) {
+    if (this.selectorStr.indexOf('::') !== -1) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (!this.pClasses) this.pClasses = [];
+    this.pClasses.push(value);
+    return new CssSelectorBuilder(`${this.selectorStr}:${value}`,
+      this.elements,
+      this.ids,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      this.pElement);
+  }
 
-  combine(/* selector1, combinator, selector2 */) {
-    throw new Error('Not implemented');
-  },
-};
+  pseudoElement(value) {
+    if (this.pElement) throw new Error('Element, id and pseudo-element should not occur more then one time inside the selector');
+    return new CssSelectorBuilder(`${this.selectorStr}::${value}`,
+      this.elements,
+      this.ids,
+      this.classes,
+      this.attrs,
+      this.pClasses,
+      value);
+  }
 
+  combine(selector1, combinator, selector2) {
+    this._ = 0; // eslint
+    return {
+      stringify() {
+        return `${selector1.stringify()} ${combinator} ${selector2.stringify()}`;
+      },
+    };
+  }
+
+  stringify() {
+    return this.selectorStr;
+  }
+}
+
+const cssSelectorBuilder = new CssSelectorBuilder();
 
 module.exports = {
   Rectangle,
