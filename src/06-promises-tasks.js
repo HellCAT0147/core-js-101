@@ -102,8 +102,7 @@ function promiseAll(array) {
 }
 
 async function chainPromises(array, action) {
-  const results = await promiseAll(array.map((p) => p.catch((e) => e)));
-  return results.reduce(action);
+  return promiseAll(array.map((p) => p.catch((e) => e))).then((d) => d.reduce(action));
 }
 
 module.exports = {
